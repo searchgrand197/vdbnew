@@ -1,0 +1,1 @@
+import{a as e,n as t}from"./jsx-runtime-DWSWI4JT.js";import{Fr as n}from"./index-DOcPxwZ6.js";var r=e(t(),1);function i(e){(0,r.useEffect)(()=>{e()},[e,n().key]),(0,r.useEffect)(()=>{let t=()=>{document.visibilityState===`visible`&&e()};return document.addEventListener(`visibilitychange`,t),()=>document.removeEventListener(`visibilitychange`,t)},[e])}export{i as t};

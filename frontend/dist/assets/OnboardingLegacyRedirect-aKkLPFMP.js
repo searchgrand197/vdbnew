@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-DWSWI4JT.js";import{Nr as t,zr as n}from"./index-DOcPxwZ6.js";var r=e(),i={pending_documents:`/hr/onboarding/document-verification`,expiring_documents:`/hr/onboarding/document-verification`},a=`/hr/onboarding/document-verification`;function o(){let[e]=n();return(0,r.jsx)(t,{to:i[(e.get(`filter`)||``).trim()]||a,replace:!0})}export{o as default};
