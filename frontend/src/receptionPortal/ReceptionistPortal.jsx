@@ -8393,7 +8393,19 @@ function PrintDischargeSummary({ rec, admission: admissionProp, onClose, onPrint
         : []
     )
 
+  const hasPrintText = (v) => v != null && String(v).trim() !== ''
+  const vitalEntries = [
+    { k: 'bp', l: 'BP (mmHg)' },
+    { k: 'pulse', l: 'Pulse (bpm)' },
+    { k: 'spo2', l: 'SpO₂ (%)' },
+    { k: 'temp', l: 'Temp (°F)' },
+    { k: 'weight', l: 'Wt (kg)' },
+    { k: 'rbs', l: 'RBS (mg/dL)' },
+  ].filter(({ k }) => hasPrintText(vitals[k]))
+  const hasAnyVitals = vitalEntries.length > 0
+
   const clinicalSections = [
+    { label: 'Discharge summary / overview', val: rec.summary_notes },
     { label: 'Chief complaints', val: rec.chief_complaints },
     { label: 'Reason for admission', val: rec.reason_for_admission },
     { label: 'Diagnosis', val: rec.diagnosis },
@@ -8402,7 +8414,7 @@ function PrintDischargeSummary({ rec, admission: admissionProp, onClose, onPrint
     { label: 'Medical history', val: rec.medical_history },
     { label: 'Family history', val: rec.family_history },
     { label: 'Personal history', val: rec.personal_history },
-    { label: 'Physical examination', val: rec.physical_examination, includeVitals: true },
+    { label: 'Physical examination', val: rec.physical_examination },
     { label: 'Treatment given', val: rec.treatment_given },
     {
       label: 'Procedure / surgery (summary)',
@@ -8415,19 +8427,37 @@ function PrintDischargeSummary({ rec, admission: admissionProp, onClose, onPrint
     { label: 'Implants', val: rec.implants_used },
     { label: 'Indwelling devices', val: rec.indwelling_devices_on_discharge },
     { label: 'Vaccination', val: rec.vaccination_given },
-  ].filter((s) => {
-    if (s.includeVitals) {
-      const hasVitals = Boolean(vitals.bp || vitals.pulse || vitals.spo2 || vitals.temp || vitals.weight || vitals.rbs)
-      const hasText = s.val && String(s.val).trim() !== ''
-      return hasVitals || hasText
-    }
-    return s.val && String(s.val).trim() !== ''
-  })
+    { label: 'Referred to facility', val: rec.referred_to_facility },
+    { label: 'Referral reason', val: rec.referral_reason },
+  ].filter((s) => hasPrintText(s.val))
 
-  const labRows = (rec.investigation_rows || []).filter(r => (r.category || 'lab') === 'lab')
-  const imgRows = (rec.investigation_rows || []).filter(r => r.category === 'imaging')
-  const medRows = rec.medication_rows || []
+  const metaDetailRows = [
+    { label: 'Condition at Discharge', val: rec.condition_at_discharge },
+    { label: 'Discharge status', val: rec.discharge_status ? String(rec.discharge_status).replace(/_/g, ' ') : '' },
+    { label: 'Mode of admission', val: rec.mode_of_admission ? String(rec.mode_of_admission).replace(/_/g, ' ') : '' },
+    { label: 'Encounter Type', val: rec.encounter_type || '' },
+    {
+      label: 'Reg. no. / RMO',
+      val: [rec.consultant_registration_no, rec.rmo_signed_by].filter(hasPrintText).join(' · '),
+    },
+    {
+      label: 'Discharge Type',
+      val: rec.discharge_type ? String(rec.discharge_type).replace(/_/g, ' ') : '',
+    },
+  ].filter((row) => hasPrintText(row.val))
+
+  const insuranceLine = [rec.abha_id, rec.insurance_provider, rec.tpa_name, rec.policy_number, rec.claim_number]
+    .filter(hasPrintText)
+    .join(' · ')
+
+  const labRows = (rec.investigation_rows || []).filter(r => (r.category || 'lab') === 'lab' && hasPrintText(r.test_name))
+  const imgRows = (rec.investigation_rows || []).filter(r => r.category === 'imaging' && hasPrintText(r.test_name))
+  const medRows = (rec.medication_rows || []).filter(r => hasPrintText(r.drug_name))
   const showOperative = surgeryRows.length > 0
+  const hasDischargeMeds = medRows.length > 0 || hasPrintText(rec.medications_on_discharge)
+  const hasDietActivity = hasPrintText(rec.diet_advice) || hasPrintText(rec.activity_advice) || hasPrintText(rec.wound_care_instructions) || hasPrintText(rec.stitch_removal_date)
+  const hasFollowUpWarnings = hasPrintText(rec.follow_up_advice) || hasPrintText(rec.warning_signs) || hasPrintText(rec.next_follow_up_date) || hasPrintText(rec.follow_up_doctor) || hasPrintText(rec.follow_up_department)
+  const showAdviceBlock = hasDischargeMeds || hasDietActivity || hasFollowUpWarnings
 
   const dischargePrintFooterBar = (
     <div className="page-footer discharge-print-footer w-full grid grid-cols-3 items-center px-8 pt-5 text-[12px] font-bold text-black border-t border-black mt-4">
@@ -8518,7 +8548,9 @@ function PrintDischargeSummary({ rec, admission: admissionProp, onClose, onPrint
                           <div className="flex"><span className="font-bold w-40 shrink-0">Gender</span><span className="w-4 shrink-0 font-bold">:</span><span className="text-black">{displayGenderLabel}</span></div>
                           <div className="flex"><span className="font-bold w-40 shrink-0">Discharge Date</span><span className="w-4 shrink-0 font-bold">:</span><span className="text-black">{fmtDischargeWhen()}</span></div>
                           <div className="flex"><span className="font-bold w-40 shrink-0">Consultant Incharge</span><span className="w-4 shrink-0 font-bold">:</span><span className="text-black">{rec.treating_consultant || adm.assigned_doctor_name || '—'}</span></div>
-                          <div className="flex"><span className="font-bold w-40 shrink-0">ABHA / Insurance</span><span className="w-4 shrink-0 font-bold">:</span><span className="text-black">{[rec.abha_id, rec.insurance_provider, rec.policy_number].filter(Boolean).join(' · ') || '—'}</span></div>
+                          {insuranceLine ? (
+                            <div className="flex"><span className="font-bold w-40 shrink-0">ABHA / Insurance</span><span className="w-4 shrink-0 font-bold">:</span><span className="text-black">{insuranceLine}</span></div>
+                          ) : null}
                         </div>
                       </div>
                     </div>
@@ -8530,26 +8562,27 @@ function PrintDischargeSummary({ rec, admission: admissionProp, onClose, onPrint
                 <tr>
                   <td>
                     <div className="page-content m-5">
-                      {(vitals.bp || vitals.pulse || vitals.spo2 || vitals.temp || vitals.weight || vitals.rbs) && (
+                      {hasAnyVitals && (
                         <div className="mb-6 flex gap-2 break-inside-avoid justify-between">
-                          {[{ k: 'bp', l: 'BP (mmHg)' }, { k: 'pulse', l: 'Pulse (bpm)' }, { k: 'spo2', l: 'SpO₂ (%)' }, { k: 'temp', l: 'Temp (°F)' }, { k: 'weight', l: 'Wt (kg)' }, { k: 'rbs', l: 'RBS (mg/dL)' }].map(({ k, l }) => (
+                          {vitalEntries.map(({ k, l }) => (
                             <div key={k} className="flex-1 text-center border border-gray-100 rounded bg-[#f5f7f9] flex flex-col items-center justify-center p-2">
                               <span className="font-bold text-gray-500 text-[11px] mb-1">{l}</span>
-                              <span className="text-[13px] font-medium text-black">{vitals[k] || '—'}</span>
+                              <span className="text-[13px] font-medium text-black">{vitals[k]}</span>
                             </div>
                           ))}
                         </div>
                       )}
-                      <div className="grid grid-cols-2 gap-x-8 gap-y-1.5 text-[13px] px-4 mb-6">
-                        <div className="flex flex-col gap-1.5">
-                          <div className="flex"><span className="font-bold w-40 shrink-0">Condition at Discharge</span><span className="w-4 shrink-0 font-bold">:</span><span className="text-black">{rec.condition_at_discharge || '—'}</span></div>
-                          <div className="flex"><span className="font-bold w-40 shrink-0">Encounter Type</span><span className="w-4 shrink-0 font-bold">:</span><span className="text-black">{rec.encounter_type || 'IPD'}</span></div>
+                      {metaDetailRows.length > 0 && (
+                        <div className="grid grid-cols-2 gap-x-8 gap-y-1.5 text-[13px] px-4 mb-6">
+                          {metaDetailRows.map((row) => (
+                            <div key={row.label} className="flex">
+                              <span className="font-bold w-40 shrink-0">{row.label}</span>
+                              <span className="w-4 shrink-0 font-bold">:</span>
+                              <span className="text-black uppercase">{row.val}</span>
+                            </div>
+                          ))}
                         </div>
-                        <div className="flex flex-col gap-1.5">
-                          <div className="flex"><span className="font-bold w-30 shrink-0">Reg. no. / RMO</span><span className="w-4 shrink-0 font-bold">:</span><span className="text-black">{[rec.consultant_registration_no, rec.rmo_signed_by].filter(Boolean).join(' · ') || '—'}</span></div>
-                          <div className="flex"><span className="font-bold w-30 shrink-0">Discharge Type</span><span className="w-4 shrink-0 font-bold">:</span><span className="uppercase text-black">{(rec.discharge_type || 'routine').replace(/_/g, ' ')}</span></div>
-                        </div>
-                      </div>
+                      )}
 
                       <div className="space-y-6 text-sm flex-1 text-black mx-4">
                         {clinicalSections.map((sec, i) => (
@@ -8598,9 +8631,9 @@ function PrintDischargeSummary({ rec, admission: admissionProp, onClose, onPrint
                               {labRows.map((r, i) => (
                                 <React.Fragment key={i}>
                                   <div className="discharge-data-grid__cell">{r.test_name}</div>
-                                  <div className="discharge-data-grid__cell">{r.value || '—'}</div>
-                                  <div className="discharge-data-grid__cell">{r.reference_range || '—'}</div>
-                                  <div className="discharge-data-grid__cell">{r.test_date ? format(new Date(`${r.test_date}T12:00:00`), 'dd/MM/yy') : '—'}</div>
+                                  <div className="discharge-data-grid__cell">{hasPrintText(r.value) ? r.value : ''}</div>
+                                  <div className="discharge-data-grid__cell">{hasPrintText(r.reference_range) ? r.reference_range : ''}</div>
+                                  <div className="discharge-data-grid__cell">{r.test_date ? format(new Date(`${r.test_date}T12:00:00`), 'dd/MM/yy') : ''}</div>
                                 </React.Fragment>
                               ))}
                             </div>
@@ -8613,8 +8646,8 @@ function PrintDischargeSummary({ rec, admission: admissionProp, onClose, onPrint
                               {imgRows.map((r, i) => (
                                 <React.Fragment key={i}>
                                   <div className="discharge-data-grid__cell">{r.test_name}</div>
-                                  <div className="discharge-data-grid__cell">{r.value || '—'}</div>
-                                  <div className="discharge-data-grid__cell">{r.test_date ? format(new Date(`${r.test_date}T12:00:00`), 'dd/MM/yy') : '—'}</div>
+                                  <div className="discharge-data-grid__cell">{hasPrintText(r.value) ? r.value : ''}</div>
+                                  <div className="discharge-data-grid__cell">{r.test_date ? format(new Date(`${r.test_date}T12:00:00`), 'dd/MM/yy') : ''}</div>
                                 </React.Fragment>
                               ))}
                             </div>
@@ -8622,54 +8655,79 @@ function PrintDischargeSummary({ rec, admission: admissionProp, onClose, onPrint
                         </div>
                       )}
 
-                      <div className="mx-2 mt-6 mb-0">
-                        <h2 className="text-center font-black text-[16px] uppercase tracking-[0.15em] m-5 italic">ADVICE ON DISCHARGE</h2>
-                        <div className="space-y-6">
-                          <div>
-                            <h3 className="font-black uppercase text-sm mb-2">Discharge medication</h3>
-                            {medRows.length > 0 ? (
-                              <div className="discharge-data-grid discharge-data-grid--med text-[11px]">
-                                <div className="discharge-data-grid__head text-left">Drug</div>
-                                <div className="discharge-data-grid__head">Dose</div>
-                                <div className="discharge-data-grid__head">Route</div>
-                                <div className="discharge-data-grid__head">Freq</div>
-                                <div className="discharge-data-grid__head">Dur</div>
-                                <div className="discharge-data-grid__head">Notes</div>
-                                {medRows.map((r, i) => {
-                                  const manual = r.rx_meta && r.rx_meta.type === 'manual'
-                                  return (
-                                    <React.Fragment key={i}>
-                                      <div className="discharge-data-grid__cell">{r.drug_name}{manual ? <span className="text-red-600 font-bold ml-1">[not in pharmacy]</span> : null}</div>
-                                      <div className="discharge-data-grid__cell">{r.dose || '—'}</div>
-                                      <div className="discharge-data-grid__cell">{r.route || '—'}</div>
-                                      <div className="discharge-data-grid__cell">{r.frequency || '—'}</div>
-                                      <div className="discharge-data-grid__cell">{r.duration || '—'}</div>
-                                      <div className="discharge-data-grid__cell">{r.instructions || '—'}</div>
-                                    </React.Fragment>
-                                  )
-                                })}
+                      {showAdviceBlock && (
+                        <div className="mx-2 mt-6 mb-0">
+                          <h2 className="text-center font-black text-[16px] uppercase tracking-[0.15em] m-5 italic">ADVICE ON DISCHARGE</h2>
+                          <div className="space-y-6">
+                            {hasDischargeMeds && (
+                              <div>
+                                <h3 className="font-black uppercase text-sm mb-2">Discharge medication</h3>
+                                {medRows.length > 0 ? (
+                                  <div className="discharge-data-grid discharge-data-grid--med text-[11px]">
+                                    <div className="discharge-data-grid__head text-left">Drug</div>
+                                    <div className="discharge-data-grid__head">Dose</div>
+                                    <div className="discharge-data-grid__head">Route</div>
+                                    <div className="discharge-data-grid__head">Freq</div>
+                                    <div className="discharge-data-grid__head">Dur</div>
+                                    <div className="discharge-data-grid__head">Notes</div>
+                                    {medRows.map((r, i) => {
+                                      const manual = r.rx_meta && r.rx_meta.type === 'manual'
+                                      return (
+                                        <React.Fragment key={i}>
+                                          <div className="discharge-data-grid__cell">{r.drug_name}{manual ? <span className="text-red-600 font-bold ml-1">[not in pharmacy]</span> : null}</div>
+                                          <div className="discharge-data-grid__cell">{hasPrintText(r.dose) ? r.dose : ''}</div>
+                                          <div className="discharge-data-grid__cell">{hasPrintText(r.route) ? r.route : ''}</div>
+                                          <div className="discharge-data-grid__cell">{hasPrintText(r.frequency) ? r.frequency : ''}</div>
+                                          <div className="discharge-data-grid__cell">{hasPrintText(r.duration) ? r.duration : ''}</div>
+                                          <div className="discharge-data-grid__cell">{hasPrintText(r.instructions) ? r.instructions : ''}</div>
+                                        </React.Fragment>
+                                      )
+                                    })}
+                                  </div>
+                                ) : (
+                                  <div className="whitespace-pre-wrap font-mono text-xs bg-gray-50 p-2 rounded border border-gray-200">{rec.medications_on_discharge}</div>
+                                )}
                               </div>
-                            ) : (
-                              <div className="whitespace-pre-wrap font-mono text-xs bg-gray-50 p-2 rounded border border-gray-200">{rec.medications_on_discharge || 'As per prescription.'}</div>
+                            )}
+                            {(hasDietActivity || hasFollowUpWarnings) && (
+                              <div className={`grid ${hasDietActivity && hasFollowUpWarnings ? 'grid-cols-2' : 'grid-cols-1'} gap-8 text-[13px] break-inside-avoid`}>
+                                {hasDietActivity && (
+                                  <div>
+                                    <h3 className="font-black uppercase text-sm mb-2">Diet & activity</h3>
+                                    <div className="text-gray-700 whitespace-pre-wrap uppercase">
+                                      {hasPrintText(rec.diet_advice) && <p>{rec.diet_advice}</p>}
+                                      {hasPrintText(rec.activity_advice) && <p>{rec.activity_advice}</p>}
+                                    </div>
+                                    {hasPrintText(rec.wound_care_instructions) && (
+                                      <p className="mt-2"><span className="font-bold text-black">Wound care:</span> <span className="uppercase">{rec.wound_care_instructions}</span></p>
+                                    )}
+                                    {hasPrintText(rec.stitch_removal_date) && (
+                                      <p className="mt-1"><span className="font-bold text-black">Stitch removal:</span> {format(new Date(`${rec.stitch_removal_date}T12:00:00`), 'd/M/yyyy')}</p>
+                                    )}
+                                  </div>
+                                )}
+                                {hasFollowUpWarnings && (
+                                  <div>
+                                    <h3 className="font-black uppercase text-sm mb-2">Follow-up & warnings</h3>
+                                    <div className="text-gray-700 whitespace-pre-wrap uppercase font-bold">
+                                      {hasPrintText(rec.follow_up_advice) && <p>{rec.follow_up_advice}</p>}
+                                      {hasPrintText(rec.warning_signs) && <p className="text-red-700 font-bold">{rec.warning_signs}</p>}
+                                    </div>
+                                    {(hasPrintText(rec.next_follow_up_date) || hasPrintText(rec.follow_up_doctor) || hasPrintText(rec.follow_up_department)) && (
+                                      <p className="mt-2 text-black font-bold">
+                                        Next visit:
+                                        {hasPrintText(rec.next_follow_up_date) ? ` ${format(new Date(`${rec.next_follow_up_date}T12:00:00`), 'd/M/yyyy')}` : ''}
+                                        {hasPrintText(rec.follow_up_doctor) ? ` · ${rec.follow_up_doctor}` : ''}
+                                        {hasPrintText(rec.follow_up_department) ? ` (${rec.follow_up_department})` : ''}
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             )}
                           </div>
-                          <div className="grid grid-cols-2 gap-8 text-[13px] break-inside-avoid">
-                            <div>
-                              <h3 className="font-black uppercase text-sm mb-2">Diet & activity</h3>
-                              <div className="text-gray-700 whitespace-pre-wrap uppercase">{rec.diet_advice || rec.activity_advice ? <>{rec.diet_advice && <p>{rec.diet_advice}</p>}{rec.activity_advice && <p>{rec.activity_advice}</p>}</> : <span className="text-gray-400">—</span>}</div>
-                              {rec.wound_care_instructions && <p className="mt-2"><span className="font-bold text-black">Wound care:</span> <span className="uppercase">{rec.wound_care_instructions}</span></p>}
-                              {rec.stitch_removal_date && <p className="mt-1"><span className="font-bold text-black">Stitch removal:</span> {format(new Date(`${rec.stitch_removal_date}T12:00:00`), 'd/M/yyyy')}</p>}
-                            </div>
-                            <div>
-                              <h3 className="font-black uppercase text-sm mb-2">Follow-up & warnings</h3>
-                              <div className="text-gray-700 whitespace-pre-wrap uppercase font-bold">{rec.follow_up_advice || rec.warning_signs ? <>{rec.follow_up_advice && <p>{rec.follow_up_advice}</p>}{rec.warning_signs && <p className="text-red-700 font-bold">{rec.warning_signs}</p>}</> : <span className="text-gray-400">—</span>}</div>
-                              {(rec.next_follow_up_date || rec.follow_up_doctor) && (
-                                <p className="mt-2 text-black font-bold">Next visit: {rec.next_follow_up_date ? format(new Date(`${rec.next_follow_up_date}T12:00:00`), 'd/M/yyyy') : '—'} {rec.follow_up_doctor ? `· ${rec.follow_up_doctor}` : ''} {rec.follow_up_department ? `(${rec.follow_up_department})` : ''}</p>
-                              )}
-                            </div>
-                          </div>
                         </div>
-                      </div>
+                      )}
 
                       {rec.discharge_type === 'death' && (rec.cause_of_death || rec.time_of_death) && (
                         <div className="mt-6 border-2 border-red-300 rounded p-3 break-inside-avoid page-break-inside-avoid" style={{ pageBreakInside: 'avoid' }}>
